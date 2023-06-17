@@ -1,5 +1,18 @@
 #!/usr/bin/env bash
 
+
+__dirname__=$(dirname "$0")
+
+trap 'jobs -p | xargs -r kill' EXIT
+
+# remote port forward
+(
+  until '/mnt/c/Program Files/Git/usr/bin/ssh.exe' -R 1080:localhost:1080 -o ConnectTimeout=2 ipc@localhost -p 1022 -N -v; do
+    sleep 2
+  done
+) &
+
+
 # Special thanks to:
 # https://github.com/Leoyzen/KVM-Opencore
 # https://github.com/thenickdude/KVM-Opencore/
@@ -18,12 +31,13 @@ MY_OPTIONS="+ssse3,+sse4.2,+popcnt,+avx,+aes,+xsave,+xsaveopt,check"
 # This script works for Big Sur, Catalina, Mojave, and High Sierra. Tested with
 # macOS 10.15.6, macOS 10.14.6, and macOS 10.13.6.
 
-ALLOCATED_RAM="3072" # MiB
-CPU_SOCKETS="1"
+# ALLOCATED_RAM="3072" # MiB
+ALLOCATED_RAM="8192" # MiB
+CPU_SOCKETS="4"
 CPU_CORES="2"
-CPU_THREADS="4"
+CPU_THREADS="8"
 
-REPO_PATH="."
+REPO_PATH=$__dirname__
 OVMF_DIR="."
 
 # This causes high cpu usage on the *host* side
@@ -48,14 +62,24 @@ args=(
   -device ich9-ahci,id=sata
   -drive id=OpenCoreBoot,if=none,snapshot=on,format=qcow2,file="$REPO_PATH/OpenCore/OpenCore.qcow2"
   -device ide-hd,bus=sata.2,drive=OpenCoreBoot
-  -device ide-hd,bus=sata.3,drive=InstallMedia
-  -drive id=InstallMedia,if=none,file="$REPO_PATH/BaseSystem.img",format=raw
+  # -device ide-hd,bus=sata.3,drive=InstallMedia
+  # -drive id=InstallMedia,if=none,file="$REPO_PATH/BaseSystem.img",format=raw
   -drive id=MacHDD,if=none,file="$REPO_PATH/mac_hdd_ng.img",format=qcow2
   -device ide-hd,bus=sata.4,drive=MacHDD
   # -netdev tap,id=net0,ifname=tap0,script=no,downscript=no -device virtio-net-pci,netdev=net0,id=net0,mac=52:54:00:c9:18:27
-  -netdev user,id=net0 -device virtio-net-pci,netdev=net0,id=net0,mac=52:54:00:c9:18:27
+  # -netdev user,id=net0 -device virtio-net-pci,netdev=net0,id=net0,mac=52:54:00:c9:18:27
+  -netdev user,id=net0,hostfwd=tcp::1022-:22,hostfwd=tcp::15900-:5900 -device virtio-net-pci,netdev=net0,id=net0,mac=52:54:00:c9:18:27
+  # -netdev bridge,id=net0,br=virbr0,"helper=/usr/lib/qemu/qemu-bridge-helper"
   -monitor stdio
-  -device VGA,vgamem_mb=128
+  -device VGA,vgamem_mb=32
+  # -device VGA,vgamem_mb=128,edid=on,xres=1280,yres=720
+  # -vga std
+  # -vga virtio
+  ## use vnc
+  # -display none
+  # -vnc 0.0.0.0:1,password -k en-us
 )
 
-qemu-system-x86_64 "${args[@]}"
+# sudo qemu-system-x86_64 "${args[@]}"
+echo js | sudo -S qemu-system-x86_64 "${args[@]}"
+# wait
